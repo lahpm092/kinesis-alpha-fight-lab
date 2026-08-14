@@ -34,9 +34,13 @@ def sam_tracker():
         mdir = common.models_dir() / "sam3-tracker-bf16"
         if not mdir.exists():
             mdir = common.models_dir() / "sam3-hf"
+        # the processor's small files live with the original checkpoint
+        pdir = common.models_dir() / "sam3-hf"
+        if not (pdir / "processor_config.json").exists():
+            pdir = mdir
         dev = "mps" if torch.backends.mps.is_available() else "cpu"
         m = Sam3TrackerModel.from_pretrained(mdir, dtype=torch.bfloat16).to(dev).eval()
-        p = Sam3TrackerProcessor.from_pretrained(mdir)
+        p = Sam3TrackerProcessor.from_pretrained(pdir)
         _sam = (m, p, dev)
     return _sam
 

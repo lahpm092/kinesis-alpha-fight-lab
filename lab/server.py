@@ -7,7 +7,7 @@ import argparse
 import mimetypes
 import os
 import re
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -92,7 +92,7 @@ def main():
     ap.add_argument("--port", type=int, default=5199)
     ap.add_argument("--host", default="127.0.0.1")
     args = ap.parse_args()
-    srv = HTTPServer((args.host, args.port), Handler)
+    srv = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"fight lab at http://{args.host}:{args.port}/", flush=True)
     srv.serve_forever()
 
