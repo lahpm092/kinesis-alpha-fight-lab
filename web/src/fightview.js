@@ -187,7 +187,7 @@ class FighterRig {
           cap.position.set((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2);
           this._q.setFromUnitVectors(this._up, this._d.normalize());
           cap.quaternion.copy(this._q);
-          cap.scale.set(1, Math.max(len * 0.72, 0.02), 1);
+          cap.scale.set(1, Math.max(len * 0.8, 0.02), 1);
         }
       }
     }
@@ -376,6 +376,9 @@ export function createFightScene(mount, { skels, vecs, highlights = [], fighters
         const tr = trails[role][nm];
         if (!flags.trails || !rig.present) { tr.line.visible = false; continue; }
         const p = rig.jointV(nm, _pos);
+        if (tr.buf.length && t < tr.buf[tr.buf.length - 1][0] - 0.05) {
+          tr.buf.length = 0;  // scrubbed backwards; the old future is stale
+        }
         if (p && Math.abs(t - tr.lastT) > 1 / 61) {
           tr.buf.push([t, p.x, p.y, p.z]);
           tr.lastT = t;
@@ -445,9 +448,11 @@ export function createFightScene(mount, { skels, vecs, highlights = [], fighters
   let disposed = false;
   let raf = 0;
   const loop = () => {
-    if (disposed || !renderer.domElement.isConnected) return;
-    controls.update();
-    renderer.render(scene, camera);
+    if (disposed) return;
+    if (renderer.domElement.isConnected) {
+      controls.update();
+      renderer.render(scene, camera);
+    }
     raf = requestAnimationFrame(loop);
   };
   raf = requestAnimationFrame(loop);

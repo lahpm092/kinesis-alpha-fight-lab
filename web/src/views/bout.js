@@ -95,6 +95,7 @@ export async function render(mount, ctx) {
       b.addEventListener("click", () => {
         const m = sceneMain.getMode(role) === "skel" ? "model" : "skel";
         sceneMain.setMode(role, m);
+        sceneMain.setTime(tr.t);
         b.textContent = `${F[role].label} · ${m === "skel" ? "skeleton" : "body"}`;
       });
       return b;
@@ -126,6 +127,7 @@ export async function render(mount, ctx) {
     };
     tr.on((t) => { sceneMain.setTime(t); scenePane.setTime(t); upd(); });
     sceneMain.setTime(0); scenePane.setTime(0); upd();
+    window.__fv = sceneMain;  // test hook
   } else {
     put(mount, panel("the fight view", null, scrim("3d store not built — " + skelWhy)));
     put(pane3d, scrim("3d store not built"));

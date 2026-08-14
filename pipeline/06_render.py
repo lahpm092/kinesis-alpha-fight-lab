@@ -47,6 +47,21 @@ def ff_writer(dest, w, h, fps):
         stdin=subprocess.PIPE)
 
 
+def keep_main(m):
+    """drop mask islands under 15% of the largest component - kills the
+    stray saturated blob a box prompt sometimes grabs, keeps a limb split
+    in two by an occluding body"""
+    import cv2
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8), 8)
+    if n <= 2:
+        return m
+    areas = stats[1:, cv2.CC_STAT_AREA]
+    floor = areas.max() * 0.15
+    keep = np.zeros(n, bool)
+    keep[1:] = areas >= floor
+    return keep[lab]
+
+
 def mask_lookup():
     """frame -> {role: rle}; opens one chunk at a time, ordered"""
     files = sorted((common.WORK / "masks").glob("chunk_*.npz"))
@@ -85,7 +100,7 @@ def render_seg():
             rle = table[i].get(r)
             if rle is None:
                 continue
-            m = common.rle_decode(rle, (H, W))
+            m = keep_main(common.rle_decode(rle, (H, W)))
             lay = im[m].astype(np.float32)
             a = A_FILL[r]
             im[m] = (lay * (1 - a) + np.array(COL[r], np.float32) * a).astype(np.uint8)
