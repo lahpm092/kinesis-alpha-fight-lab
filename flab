@@ -1,0 +1,9 @@
+#!/bin/bash
+# fight lab entry point
+cd "$(dirname "$0")"
+case "${1:-serve}" in
+  serve)   shift; exec python3 lab/server.py "$@" ;;
+  export)  shift; exec python3 pipeline/05_export.py "$@" ;;
+  render)  shift; exec python3 pipeline/06_render.py "$@" ;;
+  *) echo "usage: ./flab [serve|export|render]"; exit 1 ;;
+esac
