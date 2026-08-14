@@ -63,16 +63,20 @@ def keep_main(m):
 
 
 def mask_lookup():
-    """frame -> {role: rle}; opens one chunk at a time, ordered"""
+    """frame -> {role: rle}, plus per-role px stats; one pass over chunks"""
     files = sorted((common.WORK / "masks").glob("chunk_*.npz"))
     table = {}
+    px = {}
     for f in files:
         z = np.load(f)
         for k in z.files:
             if k.startswith("f"):
                 i, r = k[1:].split("_")
                 table.setdefault(int(i), {})[r] = z[k]
-    return table
+            elif k.startswith("s"):
+                i, r = k[1:].split("_")
+                px.setdefault(r, {})[int(i)] = float(z[k][0])
+    return table, px
 
 
 def render_seg():
@@ -80,7 +84,11 @@ def render_seg():
     src = common.video_path()
     meta = common.probe(src)
     W, H = meta["wh"]
-    table = mask_lookup()
+    table, px = mask_lookup()
+    # a referee mask far below the referee's median area is a bridged box
+    # that slid onto a broadcast graphic - withhold it, don't paint it
+    ref_px = sorted(px.get("ref", {}).values())
+    ref_floor = 0.25 * ref_px[len(ref_px) // 2] if ref_px else 0
     frames = sorted(table)
     out = common.STORE / "media"
     out.mkdir(parents=True, exist_ok=True)
@@ -99,6 +107,8 @@ def render_seg():
         for r in ("ref", "blue", "red"):
             rle = table[i].get(r)
             if rle is None:
+                continue
+            if r == "ref" and px.get("ref", {}).get(i, 0) < ref_floor:
                 continue
             m = keep_main(common.rle_decode(rle, (H, W)))
             lay = im[m].astype(np.float32)

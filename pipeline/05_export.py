@@ -126,7 +126,7 @@ def ang(K, a, b, c):
     return np.degrees(np.arccos(np.clip(cos, -1, 1)))
 
 
-def smooth_series(x, w=7):
+def smooth_series(x, w=5):
     """savgol inside continuously finite runs only; never bridges a hole"""
     x = np.asarray(x, float).copy()
     ok = np.isfinite(x)
@@ -140,7 +140,7 @@ def smooth_series(x, w=7):
     return x
 
 
-def d_dt(x, fps, w=7):
+def d_dt(x, fps, w=5):
     """gradient of the smoothed series; NaN where the series is NaN"""
     xs = smooth_series(x, w)
     out = np.full_like(xs, np.nan)
@@ -176,7 +176,8 @@ def main():
         n = len(F)
         step = int(np.median(np.diff(F))) if n > 1 else common.STRIDE
         fps3 = common.FPS_SRC / max(step, 1)
-        K3o, oko, rep = skelclean.clean3d(z["K3"], z["ok"], fps3)
+        # smooth_win 5 (167 ms at 30 Hz): the default 7 flattens kick peaks
+        K3o, oko, rep = skelclean.clean3d(z["K3"], z["ok"], fps3, smooth_win=5)
         cleaned[r] = {"F": F, "K3": K3o, "ok": oko, "rep": rep, "fps": fps3,
                       "CT": z["CT"], "K2": z["K2"]}
         for i in range(n):
