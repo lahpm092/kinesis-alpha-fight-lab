@@ -22,10 +22,10 @@ export async function render(mount) {
   const stages = [
     ["01 · master", "VFR source (~31 fps true rate) → CFR 30 fps x264 master; one shared frame timeline for every stage", "mini"],
     ["02 · identity", "RetinaNet person boxes, greedy-IoU tracklets, then hogu colour over the torso region names each tracklet: hong red, chung blue, referee white. A clinch that merges the pair classifies as one box - the other fighter gets a gap, not a guess", "studio"],
-    ["03 · segmentation", bout.models.segmentation + "; mask k belongs to prompted box k, so mask identity is box identity", "studio"],
-    ["04 · reconstruction", bout.models.pose3d + " per fighter per frame; camera-space joints + camera translation", "studio"],
+    ["03 · segmentation", bout.models.segmentation + "; SAM 3.1 masks are refreshed on each analysis frame, reduced to one connected instance, assigned by mask-level hong/chung hogu evidence plus temporal spatial proposals, and rejected when they look like the referee, crowd, or mat", "Apple silicon"],
+    ["04 · reconstruction", bout.models.pose3d + " per fighter per frame; camera-space joints, camera translation, and reduced MHR surface", "studio"],
     ["05 · export", "skeleton cleaning (conf/jump gates, ≤3-frame gap fill, run-local smoothing), shared RANSAC floor from both fighters' heels and toes, world re-referencing, angles, velocities, screening events", "mini"],
-    ["06 · render", "mask and skeleton overlays burned to x264 clips with the family palette", "mini"],
+    ["06 · render", "synchronized mask, skeleton, and actual MHR surface clips burned to x264 with the family palette", "mini"],
   ];
   const lp = el("div", "grid grid-2");
   for (const [t, d, host] of stages) {

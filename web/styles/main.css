@@ -230,7 +230,9 @@ main { max-width: var(--maxw); margin: 0 auto; padding: clamp(26px, 4vh, 48px) v
 
 /* ---------------------------------------------------------------- bout */
 .threeviews { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(10px, 1.2vw, 18px); }
-@media (max-width: 1080px) { .threeviews { grid-template-columns: minmax(0, 1fr); } }
+/* Keep the comparison genuinely side by side on laptop/tablet layouts; only
+   stack when three readable video panes cannot physically fit. */
+@media (max-width: 720px) { .threeviews { grid-template-columns: minmax(0, 1fr); } }
 .viewpane { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .viewpane video, .viewpane .pane3d { width: 100%; aspect-ratio: 832 / 480; display: block;
   border: 1px solid var(--rule); background: var(--coal); object-fit: contain; }
