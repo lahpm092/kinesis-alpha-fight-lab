@@ -1,0 +1,90 @@
+{
+ "title": "Chuncheon 2024 - taekwondo bout",
+ "source": {
+  "file": "cb07f89a-ec64-457a-bdd5-b296362f2fb6.MP4",
+  "master": "fight_cfr30.mp4 (CFR 30, source is VFR ~31 fps)",
+  "wh": [
+   832,
+   480
+  ],
+  "duration_s": 328.433
+ },
+ "fighters": {
+  "red": {
+   "label": "L.S. GALLO",
+   "flag": "MEX",
+   "corner": "hong (red)"
+  },
+  "blue": {
+   "label": "Y. XU",
+   "flag": "CHN",
+   "corner": "chung (blue)"
+  }
+ },
+ "identity_note": "names read off the broadcast scoreboard; corners verified by hogu colour on every tracked frame",
+ "models": {
+  "segmentation": "SAM 3.1 concept segmentation (MLX; 4-bit affine), single connected instances, temporal role boxes with conservative on-mat hogu-colour recovery",
+  "pose3d": "SAM 3D Body (MHR rig), mask-conditioned monocular joints and surface mesh",
+  "detector": "torchvision RetinaNet ResNet50-FPN v2"
+ },
+ "compute": "Apple M4 (SAM 3.1, MLX) + M3 Ultra (SAM 3D Body, MPS)",
+ "tracking": {
+  "n_proc_frames": 3285,
+  "n_tracklets": 396,
+  "tracklets_by_role": {
+   "red": 69,
+   "blue": 48,
+   "ref": 61
+  },
+  "unclassified": 218,
+  "frames_with_box": {
+   "red": 2913,
+   "blue": 2833,
+   "ref": 2522
+  },
+  "bridged": {
+   "red": 355,
+   "blue": 398,
+   "ref": 259
+  },
+  "coverage": {
+   "red": 0.887,
+   "blue": 0.862,
+   "ref": 0.768
+  }
+ },
+ "clean": {
+  "red": {
+   "n_frames": 3285,
+   "n_joints": 70,
+   "n_ok_in": 2816,
+   "frames_dropped": 872,
+   "joints_dropped_jump": 12617,
+   "gaps_filled": 42007,
+   "smoothed_runs": 6250,
+   "n_ok_out": 2504,
+   "body_scale_m": 0.551,
+   "pct_joints_dropped": 37.37,
+   "pct_gaps_filled": 39.45,
+   "camera_root_samples_dropped": 87
+  },
+  "blue": {
+   "n_frames": 3285,
+   "n_joints": 70,
+   "n_ok_in": 2912,
+   "frames_dropped": 957,
+   "joints_dropped_jump": 12223,
+   "gaps_filled": 43534,
+   "smoothed_runs": 6481,
+   "n_ok_out": 2577,
+   "body_scale_m": 0.567,
+   "pct_joints_dropped": 38.86,
+   "pct_gaps_filled": 41.33,
+   "camera_root_samples_dropped": 128
+  }
+ },
+ "ground": {
+  "inlier_frac": 0.41,
+  "tilt_vs_camera_deg": 5.0
+ }
+}

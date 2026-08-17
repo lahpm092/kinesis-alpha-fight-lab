@@ -1,0 +1,28 @@
+{
+ "fighters": {
+  "red": {
+   "kicks": 8,
+   "kicks_flagged": 1,
+   "terminal_extension_events": 0,
+   "high_omega_events": 0,
+   "trunk_events": 1,
+   "knee_ext_p95_deg": 164.6,
+   "max_kick_speed_mm_s": 4797
+  },
+  "blue": {
+   "kicks": 10,
+   "kicks_flagged": 0,
+   "terminal_extension_events": 0,
+   "high_omega_events": 0,
+   "trunk_events": 0,
+   "knee_ext_p95_deg": 166.1,
+   "max_kick_speed_mm_s": 5968
+  }
+ },
+ "method": [
+  "terminal_knee_extension: knee angle >= 172.0 deg at a kick-speed peak - whipping full extension loads the posterior chain and the joint capsule",
+  "high_knee_omega: |knee angular velocity| >= 700.0 deg/s around the peak - a lower bound at this sampling rate",
+  "trunk_compensation: trunk lean >= 45.0 deg from the ground normal during the kick window",
+  "all indicators are mechanical threshold events over model-inferred monocular 3D; they screen for load patterns worth reviewing on film, and diagnose nothing"
+ ]
+}

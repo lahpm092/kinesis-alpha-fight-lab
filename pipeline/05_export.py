@@ -51,12 +51,21 @@ V_BURST = 2200       # mm/s CoM-speed floor for a movement burst
 OMEGA_HI = 700.0     # deg/s knee angular velocity flag
 EXT_HI = 172.0       # deg terminal knee extension flag
 TRUNK_HI = 45.0      # deg trunk lean flag during a kick
+GROUND_TOLERANCE_M = 0.08  # monocular foot-plane residual (model noise)
 
 
 def load_pose():
-    files = sorted((common.WORK / "pose3d").glob("chunk_*.npz"))
+    files = common.pose_chunks()
     if not files:
         raise SystemExit("no pose3d chunks; pull from the Studio first")
+    valid = []
+    for f in files:
+        z = np.load(f)
+        if "schema" in z and int(z["schema"]) >= 2 and "red_V" in z:
+            valid.append(f)
+    files = valid
+    if not files:
+        raise SystemExit("pose chunks are legacy/incomplete; rerun 04_pose3d.py")
     out = {}
     for r in FIGHTERS:
         F, K3, K2, CT, ok = [], [], [], [], []
@@ -90,7 +99,7 @@ def fit_ground(foot_pts):
             continue
         n = n / nn
         d = np.abs((P - p0) @ n)
-        inl = (d < 0.06).sum()
+        inl = (d < GROUND_TOLERANCE_M).sum()
         if best is None or inl > best[0]:
             best = (inl, n, p0)
     if best is None or best[0] < 0.35 * len(P):
@@ -153,6 +162,53 @@ def d_dt(x, fps, w=5):
     return out
 
 
+def clean_camera_root(points, valid, fps, radius_s=1.0, max_residual_m=.75):
+    """Reject monocular camera-depth jumps and smooth accepted root runs.
+
+    SAM 3D Body can retain an excellent image-plane pose while briefly
+    changing the fitted camera depth by several metres.  Such samples are
+    valid for the 2D overlay but cannot support world placement or velocity.
+    A centred temporal median catches those scale islands; no missing or
+    rejected sample is interpolated.  Savitzky-Golay is applied only inside
+    continuously accepted runs, where fighter translation is low frequency.
+    """
+    P = np.asarray(points, float)
+    good = np.asarray(valid, bool) & np.isfinite(P).all(axis=1)
+    half = max(2, int(round(radius_s * fps)))
+    med = np.full_like(P, np.nan)
+    for i in np.where(good)[0]:
+        lo, hi = max(0, i - half), min(len(P), i + half + 1)
+        window = P[lo:hi][good[lo:hi]]
+        if len(window) >= 3:
+            med[i] = np.median(window, axis=0)
+    residual = np.linalg.norm(P - med, axis=1)
+    keep = good & (np.isnan(residual) | (residual <= max_residual_m))
+
+    # A scale plateau can become its own rolling median.  Break its boundary
+    # when the first accepted step would require implausible root speed; the
+    # resulting gap prevents differentiation across that transition.
+    idx = np.where(keep)[0]
+    if len(idx) > 1:
+        last = idx[0]
+        for i in idx[1:]:
+            gap = i - last
+            if np.linalg.norm(P[i] - P[last]) > .5 * gap:  # 5 m/s at 10 Hz
+                keep[i] = False
+            else:
+                last = i
+
+    out = np.full_like(P, np.nan)
+    out[keep] = P[keep]
+    idx = np.where(keep)[0]
+    for run in np.split(idx, np.where(np.diff(idx) > 1)[0] + 1):
+        if len(run) < 5:
+            continue
+        w = min(11, len(run) if len(run) % 2 else len(run) - 1)
+        if w >= 5:
+            out[run] = savgol_filter(out[run], w, 2, axis=0)
+    return out, int(good.sum() - keep.sum())
+
+
 def jlist(x, nd=1):
     """np array -> JSON list with null for NaN, rounded"""
     out = []
@@ -178,7 +234,12 @@ def main():
         fps3 = common.FPS_SRC / max(step, 1)
         # smooth_win 5 (167 ms at 30 Hz): the default 7 flattens kick peaks
         K3o, oko, rep = skelclean.clean3d(z["K3"], z["ok"], fps3, smooth_win=5)
-        cleaned[r] = {"F": F, "K3": K3o, "ok": oko, "rep": rep, "fps": fps3,
+        cleaned[r] = {"F": F, "K3": K3o, "ok": oko,
+                      # A short local-joint gap may be interpolated by the
+                      # cleaner, but camera translation and 2D projection do
+                      # not exist unless SAM 3D actually succeeded.
+                      "raw_ok": z["ok"].astype(bool),
+                      "rep": rep, "fps": fps3,
                       "CT": z["CT"], "K2": z["K2"]}
         for i in range(n):
             if z["ok"][i]:
@@ -199,6 +260,7 @@ def main():
     for r in FIGHTERS:
         c = cleaned[r]
         F, K3, oko, fps3 = c["F"], c["K3"], c["ok"], c["fps"]
+        frame_ok = oko & c["raw_ok"]
         n = len(F)
         T = F / common.FPS_SRC
 
@@ -206,7 +268,7 @@ def main():
         root = np.full((n, 3), np.nan)
         Kw = np.full((n, 70, 3), np.nan)
         for i in range(n):
-            if not oko[i]:
+            if not frame_ok[i]:
                 continue
             hips = K3[i, [J["l_hip"], J["r_hip"]]]
             if not np.isfinite(hips).all():
@@ -216,12 +278,23 @@ def main():
             fin = np.isfinite(K3[i]).all(axis=1)
             Kw[i, fin] = (R @ (K3[i, fin] + c["CT"][i] - p0).T).T
 
+        raw_root = root.copy()
+        root, camera_dropped = clean_camera_root(root, frame_ok, fps3)
+        for i in range(n):
+            if np.isfinite(root[i]).all() and np.isfinite(raw_root[i]).all():
+                finite = np.isfinite(Kw[i]).all(axis=1)
+                Kw[i, finite] += root[i] - raw_root[i]
+            else:
+                Kw[i] = np.nan
+        if camera_dropped:
+            c["rep"]["camera_root_samples_dropped"] = camera_dropped
+
         # ---- skel3d (family schema + world root for the shared fight view)
         frames, root_w = [], []
         broken = 0
         for i in range(n):
             hips = K3[i, [J["l_hip"], J["r_hip"]]]
-            if not oko[i] or not np.isfinite(hips).all():
+            if not frame_ok[i] or not np.isfinite(hips).all():
                 frames.append(None)
                 root_w.append(None)
                 continue
@@ -254,7 +327,7 @@ def main():
                "ground_inlier_frac": gp["inlier_frac"] if gp else None,
                "clean": rep,
                "source": "SAM 3D Body (MHR rig) monocular 3D per frame, "
-                         "box-prompted from colour-verified fighter tracks"}
+                         "conditioned on temporally tracked SAM 3.1 fighter masks"}
         json.dump(common.jnum(obj),
                   open(common.STORE / "skel3d" / f"{r}.json", "w"),
                   separators=(",", ":"))
@@ -404,10 +477,13 @@ def main():
     # ---- timeline (mask px + centroids + fighter distance)
     mask_dir = common.WORK / "masks"
     stats = {}
-    for f in sorted(mask_dir.glob("chunk_*.npz")):
+    for f in common.mask_chunks():
         z = np.load(f)
         for k in z.files:
-            if k.startswith("s"):
+            # Statistic records are s<master-frame>_<role>; do not mistake
+            # chunk metadata such as ``schema`` for a timeline sample.
+            head = k[1:].split("_", 1)[0] if k.startswith("s") else ""
+            if "_" in k and head.isdigit():
                 stats[k] = z[k]
     frames_m = sorted({int(k[1:].split("_")[0]) for k in stats})
     tl = {"F": frames_m, "t": [round(i / common.FPS_SRC, 2) for i in frames_m],
@@ -442,21 +518,31 @@ def main():
               separators=(",", ":"))
 
     # ---- bout meta
+    source_meta = common.probe(common.video_path())
+    try:
+        mask_meta = json.load(open(common.WORK / "masks" / "masks_index.json"))
+        mask_model = mask_meta.get("model", "SAM 3.1 concept segmentation (MLX)")
+    except (OSError, ValueError, TypeError):
+        mask_model = "SAM 3.1 concept segmentation (MLX)"
     json.dump(common.jnum({
         "title": "Chuncheon 2024 - taekwondo bout",
         "source": {"file": "cb07f89a-ec64-457a-bdd5-b296362f2fb6.MP4",
                    "master": "fight_cfr30.mp4 (CFR 30, source is VFR ~31 fps)",
-                   "wh": d["wh"], "duration_s": 328.4},
+                   "wh": d["wh"], "duration_s": round(
+                       source_meta["n"] / source_meta["fps"], 3)},
         "fighters": {
             "red": {"label": "L.S. GALLO", "flag": "MEX", "corner": "hong (red)"},
             "blue": {"label": "Y. XU", "flag": "CHN", "corner": "chung (blue)"}},
         "identity_note": "names read off the broadcast scoreboard; corners "
                          "verified by hogu colour on every tracked frame",
         "models": {
-            "segmentation": "SAM 3 (Sam3Tracker, bf16), per-frame box prompts",
-            "pose3d": "SAM 3D Body (MHR rig), monocular",
+            "segmentation": mask_model + ", single connected instances, "
+                            "temporal role boxes with conservative on-mat "
+                            "hogu-colour recovery",
+            "pose3d": "SAM 3D Body (MHR rig), mask-conditioned monocular "
+                      "joints and surface mesh",
             "detector": "torchvision RetinaNet ResNet50-FPN v2"},
-        "compute": "Apple M3 Ultra (Mac Studio), MPS",
+        "compute": "Apple M4 (SAM 3.1, MLX) + M3 Ultra (SAM 3D Body, MPS)",
         "tracking": d["report"],
         "clean": {r: bout_fighters[r]["clean"] for r in FIGHTERS},
         "ground": {"inlier_frac": gp["inlier_frac"],

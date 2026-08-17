@@ -46,5 +46,8 @@ Mask px counts and centroids per role per processed frame, and `dist_m`
 (model-inferred camera-space pair distance).
 
 ## media/
-`bout.mp4` (plain master), `seg.mp4` (SAM 3 masks burned), `pose.mp4`
-(cleaned skeleton projections over the dimmed plate), posters.
+`bout.mp4` (plain master), `seg.mp4` (single-instance, mask-level
+hogu-identified SAM 3.1 fighter masks burned in), `pose.mp4` (cleaned SAM 3D Body projections over the dimmed
+plate), and `mesh.mp4` (the actual reduced MHR surface predictions, shaded in
+their inferred camera positions). All three derived clips share one cadence
+and master-frame timeline; each has a poster.

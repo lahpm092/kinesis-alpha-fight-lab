@@ -1,5 +1,5 @@
 /* The bout: three comparative reads of the same seconds - segmentation,
-   cleaned pose, 3D reconstruction - over one transport, and beneath them
+   cleaned pose, real SAM 3D Body mesh - over one transport, and beneath them
    the fight view: the two of them alone on black, skeleton or body, with
    velocity arrows and live joint angles. */
 import { el, put, chip, panel, stat, tc, fmt, scrim } from "../bits.js";
@@ -38,8 +38,8 @@ export async function render(mount, ctx) {
     el("div", "kicker", "chuncheon 2024 · world taekwondo · one camera, three reads"),
     el("div", "h-title", `${F.blue.label} against ${F.red.label}`),
     el("div", "h-sub",
-      "The same five and a half minutes read three ways - SAM 3 masks, cleaned ",
-      "SAM 3D Body projections, and the reconstruction itself. Below them, the ",
+      "The same five and a half minutes read three ways - temporally tracked SAM 3.1 masks, cleaned ",
+      "SAM 3D Body projections, and the predicted MHR surface itself. Below them, the ",
       el("em", "", "fight view"), ": both athletes alone on black, with velocity ",
       "arrows and live joint angles. Depth is model-inferred; a joint the ",
       "cleaner dropped is absent, not guessed."));
@@ -62,12 +62,12 @@ export async function render(mount, ctx) {
   };
   const segV = mkVideo("seg.mp4", "seg_poster.jpg");
   const poseV = mkVideo("pose.mp4", "pose_poster.jpg");
-  const pane3d = el("div", "pane3d");
+  const meshV = mkVideo("mesh.mp4", "mesh_poster.jpg");
   const cap = (a, b) => el("div", "cap", el("span", "", a), el("span", "", b));
   const three = el("div", "threeviews",
-    el("div", "viewpane", segV, cap("i · segmentation", "sam 3 · box-prompted masks")),
-    el("div", "viewpane", poseV, cap("ii · pose, cleaned", "sam 3d body · 2d projection")),
-    el("div", "viewpane", pane3d, cap("iii · reconstruction", "drag to orbit")));
+    el("div", "viewpane", segV, cap("i · segmentation", "sam 3.1 · temporal fighter IDs")),
+    el("div", "viewpane", poseV, cap("ii · pose, cleaned", "sam 3d body · frame-aligned")),
+    el("div", "viewpane", meshV, cap("iii · reconstruction", "sam 3d body · actual mhr mesh")));
   put(mount, three);
 
   // transport with kick/risk ticks
@@ -82,10 +82,9 @@ export async function render(mount, ctx) {
     el("span", "t", "The fight view"),
     el("span", "m", "camera-relative space · pair-centred · y is the floor normal")));
 
-  let sceneMain = null, scenePane = null;
+  let sceneMain = null;
   const fv = el("div", "fightview");
   if (skels) {
-    scenePane = createFightScene(pane3d, { skels, vecs, highlights: hl.events, fighters: F, compact: true });
     sceneMain = createFightScene(fv, { skels, vecs, highlights: hl.events, fighters: F, compact: false });
 
     const hud = el("div", "fv-hud");
@@ -96,7 +95,7 @@ export async function render(mount, ctx) {
         const m = sceneMain.getMode(role) === "skel" ? "model" : "skel";
         sceneMain.setMode(role, m);
         sceneMain.setTime(tr.t);
-        b.textContent = `${F[role].label} · ${m === "skel" ? "skeleton" : "body"}`;
+        b.textContent = `${F[role].label} · ${m === "skel" ? "skeleton" : "volume proxy"}`;
       });
       return b;
     };
@@ -125,12 +124,11 @@ export async function render(mount, ctx) {
         el("div", "", `${F.red.label} `, el("b", "", r.red == null ? "—" : (r.red / 1000).toFixed(1) + " m/s"),
           ` · ${F.blue.label} `, el("b", "", r.blue == null ? "—" : (r.blue / 1000).toFixed(1) + " m/s")));
     };
-    tr.on((t) => { sceneMain.setTime(t); scenePane.setTime(t); upd(); });
-    sceneMain.setTime(0); scenePane.setTime(0); upd();
+    tr.on((t) => { sceneMain.setTime(t); upd(); });
+    sceneMain.setTime(0); upd();
     window.__fv = sceneMain;  // test hook
   } else {
     put(mount, panel("the fight view", null, scrim("3d store not built — " + skelWhy)));
-    put(pane3d, scrim("3d store not built"));
   }
 
   // ---------- three fastest kicks
@@ -187,7 +185,7 @@ export async function render(mount, ctx) {
 
   // ---------- sync loop
   let raf = 0, last = performance.now(), disposed = false;
-  const vids = [segV, poseV];
+  const vids = [segV, poseV, meshV];
   const syncVideos = () => {
     for (const v of vids) {
       if (!v.duration) continue;
@@ -221,6 +219,5 @@ export async function render(mount, ctx) {
     cancelAnimationFrame(raf);
     for (const v of vids) { v.pause(); v.removeAttribute("src"); v.load(); }
     if (sceneMain) sceneMain.dispose();
-    if (scenePane) scenePane.dispose();
   };
 }

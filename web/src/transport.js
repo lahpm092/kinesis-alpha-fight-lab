@@ -36,6 +36,7 @@ export class Transport {
     const sbtns = speeds;
     const range = el("input");
     range.type = "range"; range.min = 0; range.max = this.dur; range.step = 0.05;
+    range.value = String(this.t);
     range.addEventListener("input", () => this.seek(parseFloat(range.value)));
     const rail = el("div", "scenerail", range);
     for (const e of events) {

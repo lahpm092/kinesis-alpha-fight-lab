@@ -20,7 +20,11 @@ WORK = ROOT / "work"
 STORE = ROOT / "store"
 
 FPS_SRC = 30.0        # the CFR master
-STRIDE = 2            # analysis every 2nd master frame
+# Ten mask/pose samples per second is a practical floor for this
+# 5.5 minute clip on Apple silicon.  It keeps kicks readable while avoiding a
+# multi-day run of the SAM 3.1 video tracker + SAM 3D Body.  Override
+# for a denser export with FIGHTLAB_STRIDE=2 (15 Hz) or =1 (30 Hz).
+STRIDE = int(os.environ.get("FIGHTLAB_STRIDE", "3"))
 FPS_PROC = FPS_SRC / STRIDE
 
 ROLES = ("red", "blue", "ref")
@@ -119,3 +123,40 @@ def load_fighters():
     d = json.load(open(f))
     boxes = {r: {int(i): b for i, b in d["boxes"][r].items()} for r in d["boxes"]}
     return d, boxes
+
+
+def mask_chunks():
+    """Return only temporally identified SAM 3.1 video-mask chunks.
+
+    Older builds wrote ``chunk_*.npz`` from independent image inference.  A
+    distinct prefix makes it impossible for the pipeline to silently reuse
+    those incompatible artifacts after the video-model upgrade.
+    """
+    folder = WORK / "masks"
+    index = folder / "masks_index.json"
+    if index.exists() and not os.environ.get("FIGHTLAB_IGNORE_INDEX"):
+        try:
+            meta = json.load(open(index))
+            if int(meta.get("schema", 0)) >= 3:
+                files = [folder / name for name in meta.get("chunks", [])]
+                if files and all(path.exists() for path in files):
+                    return files
+        except (OSError, ValueError, TypeError):
+            pass
+    return sorted(folder.glob("video_chunk_*.npz"))
+
+
+def pose_chunks():
+    """Return exactly the SAM 3D chunks named by the completed stage index."""
+    folder = WORK / "pose3d"
+    index = folder / "pose_index.json"
+    if index.exists():
+        try:
+            meta = json.load(open(index))
+            files = [folder / name for name in meta.get("chunks", [])]
+            if int(meta.get("schema", 0)) >= 2 and files and all(
+                    path.exists() for path in files):
+                return files
+        except (OSError, ValueError, TypeError):
+            pass
+    return sorted(folder.glob("chunk_*.npz"))

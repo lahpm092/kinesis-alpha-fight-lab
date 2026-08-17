@@ -1,0 +1,29 @@
+[
+ {
+  "file": "media/kick_0.mp4",
+  "t": 265.7,
+  "fighter": "blue",
+  "limb": "right leg",
+  "v_peak_mm_s": 5968,
+  "knee_deg": 146.3,
+  "risk": []
+ },
+ {
+  "file": "media/kick_1.mp4",
+  "t": 156.4,
+  "fighter": "blue",
+  "limb": "right leg",
+  "v_peak_mm_s": 4856,
+  "knee_deg": 143.1,
+  "risk": []
+ },
+ {
+  "file": "media/kick_2.mp4",
+  "t": 69.9,
+  "fighter": "red",
+  "limb": "left leg",
+  "v_peak_mm_s": 4797,
+  "knee_deg": 153.3,
+  "risk": []
+ }
+]
